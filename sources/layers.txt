@@ -17,3 +17,4 @@ meta-mozilla,git://github.com/OSSystems/meta-mozilla.git,master,HEAD
 meta-mono,git://github.com/KokoFitClub/meta-mono.git,master,HEAD
 openembedded-core,git://github.com/openembedded/oe-core.git,master,HEAD
 meta-openpandora-vendor,git://github.com/openpandora/meta-openpandora-vendor.git,master,HEAD
+meta-raspberrypi,git://github.com/djwillis/meta-raspberrypi.git,master,HEAD
