@@ -10,6 +10,7 @@ COMMANDARG=$6
 LAYERDIR="${OE_SOURCE_DIR}/${LAYERNAME}"
 
 function check_layer() {
+	echo
     if ! [ -e ${LAYERDIR} ] ; then
         echo "Layer checkout missing at ${LAYERDIR}, creating one"
         git clone ${LAYERURI} ${LAYERDIR}
@@ -20,9 +21,30 @@ function check_layer() {
         fi
 
         if [ "${REV}" != "HEAD" ] ; then
-            git checkout ${REV}
+            git reset --hard ${REV}
         fi
     fi
+
+	cd ${LAYERDIR}
+	CURRENTCOMMIT="$(git log --oneline --no-abbrev -1 | awk '{print $1}')"
+	CURRENTBRANCH="$(git branch | grep '*' | awk '{print $2}')"
+
+	if [ "${CURRENTBRANCH}" != "${BRANCH}" ] ; then
+		echo "WARNING!!!!"
+		echo "WARNING: ${LAYERNAME} is using a different branch than configured in layers.txt"
+		echo "WARNING!!!!"
+	fi
+}
+
+
+function get_info() {
+	check_layer
+
+	cd ${LAYERDIR}
+	CURRENTCOMMIT="$(git log --oneline --no-abbrev -1 | awk '{print $1}')"
+	CURRENTBRANCH="$(git branch | grep '*' | awk '{print $2}')"
+
+	echo "${LAYERNAME},${LAYERURI},${CURRENTBRANCH},${CURRENTCOMMIT}" >> ${OE_SOURCE_DIR}/info.txt
 }
 
 function update_layers() {
@@ -30,7 +52,25 @@ function update_layers() {
 
     if [ "${REV}" = "HEAD" ] ; then
         cd ${LAYERDIR} && echo "Updating layer at layers/${LAYERNAME}" && git stash >&/dev/null && git pull --rebase && git stash pop >& /dev/null
-    fi
+    else
+		cd ${LAYERDIR}
+		CURRENTCOMMIT="$(git log --oneline --no-abbrev -1 | awk '{print $1}')"
+		CURRENTBRANCH="$(git branch | grep '*' | awk '{print $2}')"
+
+		if [ "${BRANCH}" != "${CURRENTBRANCH}" ] ; then
+			if [ "${REV}" != "${CURRENTCOMMIT}" ] ; then
+				echo "WARNING!!!!"
+				echo "WARNING: ${LAYERNAME} is using a different revision and branch than configured in layers.txt"
+				echo "WARNING!!!!"
+			fi
+		else
+			if [ "${REV}" != "${CURRENTCOMMIT}" ] ; then
+				git remote update
+				echo "updating to ${REV}"
+				git stash >&/dev/null && git reset --hard ${REV} && git stash pop >& /dev/null
+			fi
+		fi
+	fi	
     echo ""
 
     echo "Layers present in repository:"
@@ -50,11 +90,21 @@ function diff_tags() {
     echo ""
 }
 
+function checkout_tag() {
+    check_layer
+    cd ${LAYERDIR} && echo "Checking out $COMMANDARG" && git checkout $COMMANDARG
+    echo ""
+}
+
 case $COMMAND in
 tag)
     tag_layers;;
 changelog)
     diff_tags;;
+info)
+	get_info;;
+checkout)
+    checkout_tag;;	
 *)
     update_layers;;
 esac

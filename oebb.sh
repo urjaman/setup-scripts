@@ -34,8 +34,58 @@ PROXYHOST=""
 ###############################################################################
 OE_BASE=${PWD}
 # incremement this to force recreation of config files
-BASE_VERSION=3
-OE_ENV_FILE=~/.oe/environment-oecore
+BASE_VERSION=5
+OE_ENV_FILE=~/.oe/environment-angstromv2012.05
+
+if ! git help log | grep -q no-abbrev ; then 
+	echo "Your installed version of git is too old, it lacks --no-abbrev. Please install 1.7.6 or newer"
+	exit 1
+fi
+
+
+###############################################################################
+# CONFIG_OE() - Configure OpenEmbedded
+###############################################################################
+function config_oe()
+{
+
+    MACHINE="${CL_MACHINE}"
+
+    #--------------------------------------------------------------------------
+    # Write out the OE bitbake configuration file.
+    #--------------------------------------------------------------------------
+    mkdir -p ${OE_BUILD_DIR}/conf
+
+    # There's no need to rewrite site.conf when changing MACHINE
+    if [ ! -e ${OE_BUILD_DIR}/conf/site.conf ]; then
+        cat > ${OE_BUILD_DIR}/conf/site.conf <<_EOF
+
+SCONF_VERSION = "1"
+
+# Where to store sources
+DL_DIR = "${OE_SOURCE_DIR}/downloads"
+
+# Where to save shared state
+SSTATE_DIR = "${OE_BUILD_DIR}/build/sstate-cache"
+
+# Which files do we want to parse:
+BBFILES ?= "${OE_SOURCE_DIR}/openembedded-core/meta/recipes-*/*/*.bb"
+
+TMPDIR = "${OE_BUILD_TMPDIR}"
+
+# Go through the Firewall
+#HTTP_PROXY        = "http://${PROXYHOST}:${PROXYPORT}/"
+
+_EOF
+fi
+    if [ ! -e ${OE_BUILD_DIR}/conf/auto.conf ]; then
+        cat > ${OE_BUILD_DIR}/conf/auto.conf <<_EOF
+MACHINE ?= "${MACHINE}"
+_EOF
+    else
+	eval "sed -i -e 's/^MACHINE.*$/MACHINE ?= \"${MACHINE}\"/g' ${OE_BUILD_DIR}/conf/auto.conf"
+fi
+}
 
 ###############################################################################
 # SET_ENVIRONMENT() - Setup environment variables for OE development
@@ -58,7 +108,7 @@ fi
 
 if [ x"${BASE_VERSION}" != x"${SCRIPTS_BASE_VERSION}" ] ; then
 	echo "BASE_VERSION mismatch, recreating ${OE_ENV_FILE}"
-	rm ${OE_ENV_FILE}
+	rm -f ${OE_ENV_FILE} ${OE_BUILD_DIR}/conf/site.conf
 fi
 
 if [ -e ${OE_ENV_FILE} ] ; then
@@ -70,7 +120,7 @@ else
     #--------------------------------------------------------------------------
     # Specify distribution information
     #--------------------------------------------------------------------------
-    DISTRO="angstrom-2010.x"
+    DISTRO=$(grep DISTRO conf/local.conf | grep -v '^#' | awk -F\" '{print $2}')
     DISTRO_DIRNAME=`echo $DISTRO | sed s#[.-]#_#g`
 
     echo "export SCRIPTS_BASE_VERSION=${BASE_VERSION}" > ${OE_ENV_FILE}
@@ -141,17 +191,21 @@ else
     echo "export BBPATH=\"${BBPATH}\"" >> ${OE_ENV_FILE}
 
     #--------------------------------------------------------------------------
-    # Reconfigure dash
+    # Look for dash
     #--------------------------------------------------------------------------
     if [ "$(readlink /bin/sh)" = "dash" ] ; then
-        sudo aptitude install expect -y
-        expect -c 'spawn sudo dpkg-reconfigure -freadline dash; send "n\n"; interact;'
+	echo "/bin/sh is a symlink to dash, please point it to bash instead"
+        exit 1
     fi
 
     echo "There now is a sourceable script in ~/.oe/enviroment. You can do '. ${OE_ENV_FILE}' and run 'bitbake something' without using $0 as wrapper"
 fi # if -e ${OE_ENV_FILE}
-}
 
+if ! [ -e ${OE_BUILD_DIR}/conf/site.conf ] ; then
+	config_oe
+fi
+
+}
 
 ###############################################################################
 # UPDATE_ALL() - Make sure everything is up to date
@@ -229,51 +283,6 @@ function update_oe()
     env gawk -v command=update -f ${OE_BASE}/scripts/layers.awk ${OE_SOURCE_DIR}/layers.txt 
 }
 
-
-###############################################################################
-# CONFIG_OE() - Configure OpenEmbedded
-###############################################################################
-function config_oe()
-{
-
-    MACHINE="${CL_MACHINE}"
-
-    #--------------------------------------------------------------------------
-    # Write out the OE bitbake configuration file.
-    #--------------------------------------------------------------------------
-    mkdir -p ${OE_BUILD_DIR}/conf
-
-    # There's no need to rewrite site.conf when changing MACHINE
-    if [ ! -e ${OE_BUILD_DIR}/conf/site.conf ]; then
-        cat > ${OE_BUILD_DIR}/conf/site.conf <<_EOF
-
-SCONF_VERSION = "1"
-
-# Where to store sources
-DL_DIR = "${OE_SOURCE_DIR}/downloads"
-
-# Where to save shared state
-SSTATE_DIR = "${OE_BUILD_DIR}/build/sstate-cache"
-
-# Which files do we want to parse:
-BBFILES ?= "${OE_SOURCE_DIR}/openembedded-core/meta/recipes-*/*/*.bb"
-
-TMPDIR = "${OE_BUILD_TMPDIR}"
-
-# Go through the Firewall
-#HTTP_PROXY        = "http://${PROXYHOST}:${PROXYPORT}/"
-
-_EOF
-fi
-    if [ ! -e ${OE_BUILD_DIR}/conf/auto.conf ]; then
-        cat > ${OE_BUILD_DIR}/conf/auto.conf <<_EOF
-MACHINE ?= "${MACHINE}"
-_EOF
-    else
-	eval "sed -i -e 's/^MACHINE.*$/MACHINE ?= \"${MACHINE}\"/g' ${OE_BUILD_DIR}/conf/auto.conf"
-fi
-}
-
 ###############################################################################
 # CONFIG_SVN_PROXY() - Configure subversion proxy information
 ###############################################################################
@@ -322,13 +331,38 @@ function tag_layers()
 }
 
 ###############################################################################
-# tag_layers - Tag all layers with a given tag
+# changelog - Display changelog for all layers with a given tag
 ###############################################################################
 function changelog()
 {
-set_environment
-env gawk -v command=changelog -v commandarg=$TAG -f ${OE_BASE}/scripts/layers.awk ${OE_SOURCE_DIR}/layers.txt 
+	set_environment
+	env gawk -v command=changelog -v commandarg=$TAG -f ${OE_BASE}/scripts/layers.awk ${OE_SOURCE_DIR}/layers.txt 
 }
+
+###############################################################################
+# layer_info - Get layer info
+###############################################################################
+function layer_info()
+{
+	set_environment
+	rm -f ${OE_SOURCE_DIR}/info.txt
+	env gawk -v command=info -f ${OE_BASE}/scripts/layers.awk ${OE_SOURCE_DIR}/layers.txt
+	echo
+	echo "Showing contents of ${OE_SOURCE_DIR}/info.txt:"
+	echo
+	cat ${OE_SOURCE_DIR}/info.txt
+	echo
+}
+
+###############################################################################
+# checkout - Checkout all layers with a given tag
+###############################################################################
+function checkout()
+{
+set_environment
+env gawk -v command=checkout -v commandarg=$TAG -f ${OE_BASE}/scripts/layers.awk ${OE_SOURCE_DIR}/layers.txt 
+}
+
 
 ###############################################################################
 # Build the specified OE packages or images.
@@ -341,6 +375,12 @@ then
     if [ $1 = "update" ]
     then
         update_all
+        exit 0
+    fi
+
+    if [ $1 = "info" ]
+    then
+        layer_info
         exit 0
     fi
 
@@ -367,7 +407,17 @@ then
         exit 0
     fi
     
-
+    if [ $1 = "checkout" ]
+    then
+        if [ -z $2 ] ; then
+            echo "Checkout needs an argument"
+            exit 1
+        else
+            TAG="$2"
+        fi
+        checkout
+        exit 0
+    fi
     if [ $1 = "bitbake" ]
     then
         shift
@@ -395,6 +445,10 @@ fi
 echo ""
 echo "Usage: $0 config <machine>"
 echo "       $0 update"
+echo "       $0 tag [tagname]"
+echo "       $0 changelog <tagname>"
+echo "       $0 checkout <tagname>"
+echo "       $0 clean"
 echo ""
 echo "       Not recommended, but also possible:"
 echo "       $0 bitbake <bitbake target>"
@@ -404,9 +458,9 @@ echo "You must invoke \"$0 config <machine>\" and then \"$0 update\" prior"
 echo "to your first bitbake command"
 echo ""
 echo "The <machine> argument can be one of the following"
-echo "       beagleboard:    BeagleBoard"
-echo "       davinci-evm:    DM6446 EVM"
-echo "       omap3evm:       OMAP35x EVM"
-echo "       am3517-evm:     AM3517 (Shiva) EVM"
+echo "       beagleboard:   BeagleBoard"
+echo "       qemuarm        Emulated ARM machine"
+echo "       qemumips:      Emulated MIPS machine"
+echo "       fri2-noemgd:   Intel FRI2 machine without graphics"
 echo ""
 echo "Other machines are valid as well, but listing those would make this message way too long"
