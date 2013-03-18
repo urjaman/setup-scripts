@@ -8,7 +8,7 @@ meta-nslu2,git://github.com/kraj/meta-nslu2.git,master,3d9fc951b05b4df476374b6fc
 meta-smartphone,http://git.shr-project.org/repo/meta-smartphone.git,master,2b106be01228f64298d6cb338f93088806594344
 meta-intel,git://git.yoctoproject.org/meta-intel,master,f75f9b6f68473eb0efac802409608f8389be0030
 meta-xilinx,git://git.yoctoproject.org/meta-xilinx,master,5191333565f9913b6175bb19485f7320db82080b
-meta-openpandora,git://github.com/openpandora/meta-openpandora.git,master,HEAD
+meta-openpandora,git://github.com/urjaman/meta-openpandora.git,master,HEAD
 meta-raspberrypi,git://github.com/djwillis/meta-raspberrypi.git,denzil,HEAD
 meta-handheld,git://git.openembedded.org/meta-handheld,master,1f05a15aceb4c3a19fa070463b58125b5658b2a9
 meta-opie,git://github.com/bluelightning/meta-opie.git,master,efa3892b20a4ef80274e56e5633ebd62c16f9731
@@ -17,4 +17,4 @@ meta-browser,git://github.com/OSSystems/meta-browser.git,master,c47f59df2e723495
 meta-mono,git://git.yoctoproject.org/meta-mono.git,master,83f8233b0498aadb18bf7605c3ba6c71d9e13a3a
 meta-kde,git://gitorious.org/openembedded-core-layers/meta-kde.git,master,5b0882d951cfd71886d423c190faaa7c7f932333
 openembedded-core,git://github.com/openembedded/oe-core.git,denzil,HEAD
-meta-openpandora-vendor,git://github.com/openpandora/meta-openpandora-vendor.git,master,HEAD
+meta-openpandora-vendor,git://github.com/urjaman/meta-openpandora-vendor.git,master,HEAD
